@@ -52,6 +52,7 @@ OPEN_EXTENSIONS = (TEXT_EXTENSIONS - ACTIVE_SCRIPT_EXTENSIONS) | {
 
 FOLDER_PATTERN = r"area de trabalho|desktop|documentos|downloads"
 CONFIRMATION_TTL_SECONDS = 45.0
+SAVE_LOCATION_TTL_SECONDS = 120.0
 INSTALLED_PROGRAM_CACHE_TTL_SECONDS = 300.0
 WINDOWS_REPARSE_POINT = 0x400
 BLOCKED_START_APP_PATTERN = re.compile(
@@ -89,6 +90,13 @@ def _format_size(byte_count: int) -> str:
 class PendingAction:
     description: str
     execute: Callable[[], str]
+    expires_at: float
+
+
+@dataclass
+class PendingFileSave:
+    name: str
+    content: str
     expires_at: float
 
 
@@ -200,6 +208,18 @@ PROGRAM_SPECS = (
 )
 
 PROGRAMS_BY_KEY = {spec.key: spec for spec in PROGRAM_SPECS}
+PROGRAM_CLOSE_TARGETS = {
+    "notepad": ("Notepad.exe",),
+    "calculator": ("CalculatorApp.exe", "Calculator.exe"),
+    "paint": ("mspaint.exe",),
+    "chrome": ("chrome.exe",),
+    "edge": ("msedge.exe",),
+    "firefox": ("firefox.exe",),
+    "camera": ("WindowsCamera.exe",),
+    "arduino": ("Arduino IDE.exe", "arduino-ide.exe"),
+    "coreldraw": ("CorelDRW.exe",),
+    "consumer": ("Consumer.exe",),
+}
 PROGRAM_REQUEST_PREFIXES = (
     "aquele programa chamado ",
     "aquele aplicativo chamado ",
@@ -277,6 +297,7 @@ class ComputerCommandRouter:
         self._installed_program_cache: tuple[InstalledProgram, ...] = ()
         self._installed_program_cache_expires_at = 0.0
         self.pending_action: PendingAction | None = None
+        self.pending_save: PendingFileSave | None = None
 
     def handle(self, user_text: str) -> str | None:
         text = user_text.strip()
@@ -288,6 +309,8 @@ class ComputerCommandRouter:
 
         if self.pending_action is not None:
             return self._handle_confirmation(plain)
+        if self.pending_save is not None:
+            return self._handle_pending_save_location(plain)
 
         handlers = (
             self._handle_help,
@@ -361,10 +384,11 @@ class ComputerCommandRouter:
             return None
 
         return (
-            "Posso abrir aplicativos registrados no Windows, procurar, ler, abrir, criar e editar "
+            "Posso abrir e fechar programas conhecidos, procurar, ler, abrir, criar e editar "
             "arquivos de texto na Área de Trabalho, Documentos e Downloads, controlar "
             "volume e reprodução de mídia e informar o estado do computador. "
-            "Para apagar ou substituir um arquivo, sempre pedirei confirmação."
+            "Quando você não disser onde salvar, perguntarei a pasta. Para fechar programas "
+            "com trabalho não salvo, apagar ou substituir arquivos, pedirei confirmação."
         )
 
     def _handle_program_close(self, _text: str, plain: str) -> str | None:
@@ -382,17 +406,49 @@ class ComputerCommandRouter:
         app, candidates = self._resolve_program_name(requested, allow_fuzzy=False)
         if candidates:
             return self._program_clarification(requested, candidates)
-        if app != "calculator":
+        if app is None:
+            app, candidates = self._resolve_program_name(requested)
+        if candidates:
+            return self._program_clarification(requested, candidates)
+        if app is None:
             return (
-                "Por segurança, o fechamento por voz está disponível somente para a "
-                "Calculadora, que não possui documentos sem salvar."
+                "Não encontrei uma opção segura de fechamento para esse programa. "
+                "Diga o nome como ele aparece no Menu Iniciar."
+            )
+        if app == "explorer":
+            return (
+                "Não fecho o Explorador de Arquivos por voz porque ele também controla "
+                "partes da interface do Windows."
             )
 
-        try:
-            closed = self._process_closer(("CalculatorApp.exe", "Calculator.exe"))
-            return "Fechei a Calculadora." if closed else "A Calculadora já estava fechada."
-        except Exception as exc:
-            return f"Não consegui fechar a Calculadora: {exc}"
+        process_names = PROGRAM_CLOSE_TARGETS.get(app)
+        if process_names is None:
+            return "Ainda não tenho uma opção segura para fechar esse programa."
+        display_name = PROGRAMS_BY_KEY[app].display_name
+
+        def close_program() -> str:
+            closed = self._process_closer(process_names)
+            if closed:
+                return f"Solicitei o fechamento de {display_name}."
+            return f"{display_name} já estava fechado ou não respondeu ao pedido."
+
+        if app == "calculator":
+            try:
+                closed = self._process_closer(process_names)
+                return "Fechei a Calculadora." if closed else "A Calculadora já estava fechada."
+            except Exception as exc:
+                return f"Não consegui fechar a Calculadora: {exc}"
+
+        self._set_pending_action(
+            description=(
+                f"fechar {display_name}; alterações que ainda não foram salvas podem ser perdidas"
+            ),
+            execute=close_program,
+        )
+        return (
+            f"Posso fechar {display_name}, mas pode haver trabalho não salvo. "
+            "Diga confirmar ou cancelar."
+        )
 
     def _handle_program(self, _text: str, plain: str) -> str | None:
         if "programas autorizados" in plain:
@@ -885,6 +941,52 @@ class ComputerCommandRouter:
             plain_body = plain_body[: content_marker.start()].strip()
 
         name, folder = self._split_name_and_folder(original_body, plain_body)
+        if folder is None:
+            try:
+                self._new_text_path(name, "documentos")
+            except ValueError as exc:
+                return str(exc)
+            self.pending_save = PendingFileSave(
+                name=name,
+                content=content,
+                expires_at=time.monotonic() + SAVE_LOCATION_TTL_SECONDS,
+            )
+            return (
+                f"Onde deseja salvar o arquivo {name}? "
+                "Diga Documentos, Downloads ou Área de Trabalho."
+            )
+
+        return self._create_text_file(name, content, folder)
+
+    def _handle_pending_save_location(self, plain: str) -> str:
+        assert self.pending_save is not None
+
+        if time.monotonic() > self.pending_save.expires_at:
+            name = self.pending_save.name
+            self.pending_save = None
+            return f"O pedido para salvar {name} expirou e foi cancelado."
+
+        normalized = " ".join(re.findall(r"[a-z0-9]+", plain))
+        if any(
+            normalized == item or normalized.startswith(item + " ")
+            for item in ("nao", "cancelar", "cancele", "deixa", "pare")
+        ):
+            name = self.pending_save.name
+            self.pending_save = None
+            return f"Salvamento cancelado: {name}."
+
+        folder = self._folder_from_reply(plain)
+        if folder is None:
+            return (
+                "Ainda preciso saber onde salvar. "
+                "Diga Documentos, Downloads ou Área de Trabalho, ou diga cancelar."
+            )
+
+        pending = self.pending_save
+        self.pending_save = None
+        return self._create_text_file(pending.name, pending.content, folder)
+
+    def _create_text_file(self, name: str, content: str, folder: str) -> str:
         try:
             path = self._new_text_path(name, folder)
         except ValueError as exc:
@@ -915,6 +1017,17 @@ class ComputerCommandRouter:
         except FileExistsError:
             return "O arquivo passou a existir durante a operação e não foi substituído."
         return f"Arquivo criado em {self._display_path(path)}."
+
+    @staticmethod
+    def _folder_from_reply(plain: str) -> str | None:
+        matches: list[str] = []
+        if re.search(r"\b(?:area de trabalho|desktop)\b", plain):
+            matches.append("area de trabalho")
+        if re.search(r"\bdocumentos?\b", plain):
+            matches.append("documentos")
+        if re.search(r"\bdownloads?\b", plain):
+            matches.append("downloads")
+        return matches[0] if len(matches) == 1 else None
 
     def _handle_file_append(self, text: str, plain: str) -> str | None:
         prefix = re.match(r"^(?:adicione|adicionar|acrescente|acrescentar)\s+", plain)
@@ -1358,7 +1471,7 @@ class ComputerCommandRouter:
         closed = False
         for process_name in process_names:
             completed = subprocess.run(
-                ["taskkill.exe", "/IM", process_name, "/T", "/F"],
+                ["taskkill.exe", "/IM", process_name, "/T"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
