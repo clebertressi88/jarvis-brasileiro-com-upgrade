@@ -12,4 +12,4 @@ numpy
 pywebview
 sounddevice
 selenium
-websockets
+websockets>=15,<18

@@ -201,7 +201,7 @@ def _summarize_archived_history(messages):
         logger.warning("LLM could not refresh the rolling conversation summary.")
 
 
-def update_conversation_history(user_input, assistant_response):
+async def update_conversation_history(user_input, assistant_response):
     # Append user input and assistant response to the conversation history
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": assistant_response})
@@ -214,7 +214,31 @@ def update_conversation_history(user_input, assistant_response):
     if len(archived_for_summary) >= 8:
         batch = archived_for_summary[:]
         archived_for_summary.clear()
-        _summarize_archived_history(batch)
+        await asyncio.to_thread(_summarize_archived_history, batch)
+
+
+async def _ollama_chat_stream(*, model, messages, options):
+    """Iterate Ollama without blocking the asyncio WebSocket heartbeat."""
+    async with ollama.AsyncClient(host=get_ollama_base_url()) as client:
+        response_stream = await client.chat(
+            model=model,
+            messages=messages,
+            stream=True,
+            think=False,
+            options=options,
+        )
+        async for part in response_stream:
+            yield part
+
+
+async def _ollama_chat_once(*, model, messages, options):
+    async with ollama.AsyncClient(host=get_ollama_base_url()) as client:
+        return await client.chat(
+            model=model,
+            messages=messages,
+            think=False,
+            options=options,
+        )
 
 
 def handle_sentence_endings(buf: str):
@@ -327,17 +351,15 @@ async def chat_with_jarvis(input_text):
 
     try:
         logger.info("LLM Started inference.")
-        response_stream = ollama.chat(
+        response_stream = _ollama_chat_stream(
             model=active_model,
             messages=messages,
-            stream=True,
-            think=False,
             options={"temperature": 0.4, "num_ctx": CHAT_CONTEXT_WINDOW},
         )
 
         first_chunk = False
         first_sentence = False
-        for part in response_stream:
+        async for part in response_stream:
             if not first_chunk:
                 logger.info("LLM First chunk received.")
                 first_chunk = True
@@ -381,9 +403,8 @@ async def chat_with_jarvis(input_text):
                     messages[-1],
                 ]
                 try:
-                    fallback_response = ollama.chat(
+                    fallback_response = await _ollama_chat_once(
                         model=active_model,
-                        think=False,
                         messages=fallback_messages,
                         options={"temperature": 0.2, "num_ctx": CHAT_CONTEXT_WINDOW},
                     )
@@ -407,7 +428,7 @@ async def chat_with_jarvis(input_text):
             )
             full_response = f"{full_response.rstrip()}\n\n{notice}"
             yield notice
-        update_conversation_history(input_text, full_response)
+        await update_conversation_history(input_text, full_response)
 
     except Exception as e:
         logger.exception("LLM inference failed.")

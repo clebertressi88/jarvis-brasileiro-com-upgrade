@@ -20,6 +20,8 @@ para ações no computador.
 - compilação e descompactação com validações de segurança;
 - agente instalador limitado a um catálogo confiável do `winget`;
 - confirmação obrigatória antes de exclusões e outras ações perigosas.
+- aplicativo Android privado com voz, texto e reconexão automática;
+- comandos remotos passam pelo mesmo controlador seguro usado no PC.
 
 ## Privacidade
 
@@ -81,6 +83,28 @@ Modo texto:
 python jarvis.py --input text --output text --interface cli
 ```
 
+## Jarvis Remote para Android
+
+O aplicativo nativo está em `android/JarvisRemote`. Ele se conecta fora da
+rede local por WebSocket seguro, Tailscale Serve e um segundo pareamento HMAC
+exclusivo entre o celular e o Jarvis.
+
+No computador, inicie o gateway e gere o código do primeiro pareamento:
+
+```powershell
+.\venv\Scripts\python.exe jarvis_remote_gateway.py --pair
+tailscale serve --bg 8766
+```
+
+Texto e voz em português usam o mesmo controlador restrito. O celular pode
+pedir para abrir ou fechar programas, procurar e manipular arquivos nas pastas
+autorizadas, controlar mídia e consultar o computador. Exclusões, instalações,
+execução ou compilação de código e outras operações sensíveis exibem uma
+confirmação no PC. Uma mensagem remota não consegue aprová-la.
+
+O aplicativo reconecta ao ser aberto e repete a tentativa com espera progressiva
+quando a rede oscila. Consulte [o guia completo](docs/ANDROID_REMOTE.md).
+
 ## Voz
 
 A voz incorporada `rafael` é usada por padrão. Para usar uma amostra própria,
@@ -111,10 +135,21 @@ locais passam por ferramentas determinísticas, limites de diretório e pedidos
 de confirmação. Revise o código e mantenha o Windows atualizado antes de
 permitir automações no computador.
 
+O gateway remoto aceita somente `127.0.0.1` e deve ser exposto apenas pelo
+Tailscale Serve. Não use Tailscale Funnel. Comandos remotos ficam em um registro
+local e toda aprovação perigosa precisa ocorrer fisicamente no computador.
+
 ## Testes
 
 ```powershell
 python -m unittest discover -s tests -p "test_*.py"
+```
+
+Para validar e gerar o APK Android:
+
+```powershell
+cd android\JarvisRemote
+.\gradlew.bat testDebugUnitTest assembleDebug lintDebug
 ```
 
 ## Origem do projeto

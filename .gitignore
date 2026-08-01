@@ -192,3 +192,10 @@ cython_debug/
 *.psd
 jarvis-memory*
 Jarvis Workspace/
+
+# Android and local packaging files
+.runtime/
+android/**/.gradle/
+android/**/build/
+android/**/local.properties
+android/.sdk/

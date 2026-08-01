@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jarvis Remote</string>
+    <string name="server_hint">wss://seu-pc.sua-rede.ts.net</string>
+    <string name="pairing_code_hint">Código de pareamento com 8 dígitos</string>
+    <string name="connect">Conectar / parear</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="clear_pairing">Trocar celular</string>
+    <string name="message_hint">Escreva para o Jarvis</string>
+    <string name="voice">Falar</string>
+    <string name="voice_prompt">Fale o comando para o Jarvis</string>
+    <string name="voice_unavailable">O reconhecimento de voz não está disponível neste celular.</string>
+    <string name="send">Enviar</string>
+</resources>

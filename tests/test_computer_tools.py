@@ -106,15 +106,58 @@ class ComputerCommandRouterTests(unittest.TestCase):
         self.assertIn("Calculadora", response)
         self.assertEqual(self.launched[-1], ["calc.exe"])
 
-    def test_calculator_can_be_closed_without_closing_other_programs(self):
+    def test_calculator_closes_directly_and_notepad_requires_confirmation(self):
         response = self.router.handle("Charves, feche a calculadora.")
 
         self.assertIn("Fechei a Calculadora", response)
         self.assertEqual(self.closed, [("CalculatorApp.exe", "Calculator.exe")])
 
         response = self.router.handle("Feche o bloco de notas")
-        self.assertIn("somente para a Calculadora", response)
+        self.assertIn("confirmar ou cancelar", response)
         self.assertEqual(len(self.closed), 1)
+
+        response = self.router.handle("confirmar")
+        self.assertIn("Solicitei o fechamento", response)
+        self.assertEqual(self.closed[-1], ("Notepad.exe",))
+
+    def test_program_close_can_be_cancelled_and_explorer_is_protected(self):
+        response = self.router.handle("Feche o Chrome")
+        self.assertIn("trabalho não salvo", response)
+
+        response = self.router.handle("cancelar")
+        self.assertIn("cancelada", response.lower())
+        self.assertEqual(self.closed, [])
+
+        response = self.router.handle("Feche o explorador de arquivos")
+        self.assertIn("interface do Windows", response)
+        self.assertEqual(self.closed, [])
+
+    def test_create_file_asks_location_and_uses_next_answer(self):
+        response = self.router.handle(
+            "Crie um arquivo chamado lista.txt com o conteúdo comprar café"
+        )
+        self.assertIn("Onde deseja salvar", response)
+        self.assertIsNotNone(self.router.pending_save)
+        self.assertFalse((self.documents / "lista.txt").exists())
+
+        response = self.router.handle("Salve automaticamente em Downloads")
+        path = self.downloads / "lista.txt"
+        self.assertIn("Arquivo criado", response)
+        self.assertTrue(path.is_file())
+        self.assertEqual(path.read_text(encoding="utf-8"), "comprar café")
+        self.assertIsNone(self.router.pending_save)
+
+    def test_pending_save_repeats_options_and_can_be_cancelled(self):
+        self.router.handle("Crie um arquivo chamado rascunho.md contendo teste")
+
+        response = self.router.handle("em outra pasta")
+        self.assertIn("Ainda preciso saber", response)
+        self.assertIsNotNone(self.router.pending_save)
+
+        response = self.router.handle("cancelar")
+        self.assertIn("Salvamento cancelado", response)
+        self.assertIsNone(self.router.pending_save)
+        self.assertFalse((self.documents / "rascunho.md").exists())
 
     def test_media_commands_use_fixed_keys(self):
         response = self.router.handle("Aumente o volume")

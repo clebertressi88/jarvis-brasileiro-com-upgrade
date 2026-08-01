@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from jarvis_core import SafeActionCoordinator
 from jarvis_core.model_mode import ModelModeController
@@ -51,6 +53,49 @@ class ActionCoordinatorTests(unittest.TestCase):
         )
         response = coordinator.handle("ação local")
         self.assertIn("interrompida com segurança", response)
+
+    def test_pending_save_location_has_priority_over_other_agents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            documents = root / "Documents"
+            desktop = root / "Desktop"
+            downloads = root / "Downloads"
+            for folder in (documents, desktop, downloads):
+                folder.mkdir()
+
+            memory = FakeAgent(response=None)
+            computer = ComputerCommandRouter(
+                allowed_roots={
+                    "area de trabalho": desktop,
+                    "documentos": documents,
+                    "downloads": downloads,
+                },
+                process_launcher=lambda _command: None,
+                file_opener=lambda _path: None,
+                key_sender=lambda _key: None,
+                installed_program_provider=lambda: (),
+            )
+            coordinator = SafeActionCoordinator(
+                memory=memory,
+                programmer=FakeAgent(),
+                installer=None,
+                computer=computer,
+                semantic_planner=object(),
+                mode_controller=ModelModeController(),
+            )
+
+            question = coordinator.handle(
+                "Crie um arquivo chamado prioridades.txt contendo teste"
+            )
+            self.assertIn("Onde deseja salvar", question)
+
+            memory.response = "resposta que não deve interceptar"
+            memory.calls.clear()
+            response = coordinator.handle("Downloads")
+
+            self.assertIn("Arquivo criado", response)
+            self.assertTrue((downloads / "prioridades.txt").is_file())
+            self.assertEqual(memory.calls, [])
 
     def test_semantic_plan_uses_only_canonical_safe_computer_command(self):
         class FakePlanner:

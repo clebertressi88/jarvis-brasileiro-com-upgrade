@@ -64,7 +64,8 @@ class SafeActionCoordinator:
             ActionHandler(
                 "computer",
                 computer.handle,
-                lambda: computer.pending_action is not None,
+                lambda: computer.pending_action is not None
+                or getattr(computer, "pending_save", None) is not None,
             )
         )
         self._handlers = tuple(bindings)
