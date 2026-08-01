@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>J.A.R.V.I.S.</title>
+    <link rel="stylesheet" href="index.css" />
+    <link rel="icon" href="./assets/icon.ico" type="image/x-icon" />
+  </head>
+  <body class="mode-floating">
+    <main id="floating-assistant" class="pywebview-drag-region" aria-label="Jarvis flutuante">
+      <div class="silhouette-glow" aria-hidden="true"></div>
+      <img
+        id="jarvis-silhouette"
+        src="./assets/jarvis-silhouette.png"
+        alt="Silhueta holográfica do Jarvis"
+        draggable="false"
+      />
+    </main>
+    <button
+      id="window-mode-toggle"
+      type="button"
+      aria-label="Voltar à janela original"
+      title="Voltar à janela original"
+    >
+      <span aria-hidden="true">↗</span>
+    </button>
+    <div id="voice-icon" aria-live="polite" aria-label="Microfone ativo">
+      <img src="./assets/mic.png" alt="Ouvindo" id="voice-image" />
+      <span id="listening-label">OUVINDO</span>
+    </div>
+    <div id="arc_container" class="pywebview-drag-region">
+      <div class="arc_reactor_container">
+        <div class="arc_reactor">
+          <div class="case_container">
+            <div class="e7">
+              <div class="semi_arc_3 e5_1">
+                <div class="semi_arc_3 e5_2">
+                  <div class="semi_arc_3 e5_3">
+                    <div class="semi_arc_3 e5_4"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="core2">
+                <img src="./assets/overlay.png" class="overlay" />
+              </div>
+            </div>
+            <ul class="marks" id="marks">
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="chat_container">
+        <ul class="chat_list"></ul>
+      </div>
+    </div>
+    <script src="./js/fft.js"></script>
+    <script src="./js/display.js"></script>
+    <script src="./js/waveform.js"></script>
+  </body>
+</html>
