@@ -898,6 +898,12 @@ body.mode-original #window-mode-toggle {
   background: rgba(1, 22, 34, 0.94);
 }
 
+body.mode-original .normal_word,
+body.mode-original .keyword-user,
+body.mode-original .keyword-jarvis {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.98), 0 0 7px rgba(0, 0, 0, 0.9);
+}
+
 body.jarvis-thinking #jarvis-silhouette {
   opacity: 0.96;
 }

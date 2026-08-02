@@ -19,12 +19,28 @@ class JarvisUITests(unittest.TestCase):
     def test_mode_switch_resizes_and_moves_window(self):
         ui = JarvisUI()
         ui.window = Mock()
+        ui.floating_window = Mock()
         with patch.object(ui, "_window_position", return_value=(10, 20, 320, 500)):
             result = ui.set_window_mode("floating")
 
         ui.window.resize.assert_called_once_with(320, 500)
         ui.window.move.assert_called_once_with(10, 20)
+        ui.window.hide.assert_called_once_with()
+        ui.floating_window.show.assert_called_once_with()
         self.assertEqual(result["mode"], "floating")
+
+    def test_original_mode_hides_overlay_and_shows_full_window(self):
+        ui = JarvisUI()
+        ui.window = Mock()
+        ui.floating_window = Mock()
+        ui._page_loaded = True
+        with patch.object(ui, "_window_position", return_value=(10, 20, 400, 700)):
+            result = ui.set_window_mode("original")
+
+        ui.floating_window.hide.assert_called_once_with()
+        ui.window.evaluate_js.assert_called_once_with("applyWindowMode('original')")
+        ui.window.show.assert_called_once_with()
+        self.assertEqual(result["mode"], "original")
 
     def test_listening_state_is_forwarded_to_the_web_interface(self):
         ui = JarvisUI()

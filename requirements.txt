@@ -9,6 +9,7 @@ nemo_toolkit[asr]
 ollama
 keyboard
 numpy
+Pillow
 pywebview
 sounddevice
 selenium

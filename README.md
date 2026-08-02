@@ -11,6 +11,7 @@ para ações no computador.
 - voz local com Pocket TTS;
 - transcrição local com NVIDIA Parakeet;
 - interface flutuante com fundo transparente;
+- silhueta em sobreposição nativa, sem o retângulo do WebView2;
 - memória local em SQLite;
 - pesquisa na web quando a resposta local não for suficiente;
 - abertura de programas instalados;
